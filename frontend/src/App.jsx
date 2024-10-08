@@ -1,16 +1,27 @@
-// src/App.js
 import { useEffect, useState } from "react";
-import Dropdown from "./components/Dropdown"; // Assuming you have a Dropdown component for selecting coins
+import Dropdown from "./components/Dropdown";
+import { LineGraph } from "./components/LineGraph";
 
 const App = () => {
   const [selectedCoin, setSelectedCoin] = useState("");
-  const [liveData, setLiveData] = useState("");
+  const [liveData, setLiveData] = useState([]);
+  const [chartData, setChartData] = useState({
+    labels: [],
+    datasets: [
+      {
+        label: "Live Coin Price",
+        data: [],
+        borderColor: "rgb(255, 99, 132)",
+        backgroundColor: "rgba(255, 99, 132, 0.5)",
+      },
+    ],
+  });
+
   const [socket, setSocket] = useState(null);
-  
+
   const options = ["ETH/USDT", "BNB/USDT", "DOT/USDT"];
 
   useEffect(() => {
-    // Clean up the previous socket connection
     if (socket) {
       socket.close();
     }
@@ -24,18 +35,33 @@ const App = () => {
 
       newSocket.onmessage = (event) => {
         const data = JSON.parse(event.data);
-        const price = data.p; // The latest price of the selected coin
-        setLiveData((prevData) =>
-          prevData ? `${prevData} | ${price}` : `${price}`
-        ); // Add space and pipe to separate values
+        const price = parseFloat(data.p);
+
+        // Update the live data for the chart
+        setLiveData((prevData) => [
+          ...prevData.slice(-19), // Keep latest 20 data points
+          price,
+        ]);
+
+        setChartData((prevData) => ({
+          ...prevData,
+          labels: [
+            ...prevData.labels.slice(-19),
+            new Date().toLocaleTimeString(),
+          ],
+          datasets: [
+            {
+              ...prevData.datasets[0],
+              data: [...prevData.datasets[0].data.slice(-19), price],
+            },
+          ],
+        }));
       };
 
-      // so we can use it to close the socket
       setSocket(newSocket);
     }
 
     return () => {
-      // Clean up on component unmount or when the selected coin changes
       if (socket) {
         socket.close();
       }
@@ -45,15 +71,15 @@ const App = () => {
   return (
     <div>
       <h1>Binance Live Coin Rates</h1>
-      {/* Dropdown to select a coin */}
       <Dropdown options={options} onSelect={setSelectedCoin} />
+
       {selectedCoin && (
         <div>
           <h2>{selectedCoin} Live Rate</h2>
-          {/* Show the live data */}
           <p style={{ margin: "20px 0", fontSize: "18px", fontWeight: "bold" }}>
-            {liveData}
+            {liveData[liveData.length - 1]}
           </p>
+          <LineGraph data={chartData} />
         </div>
       )}
     </div>
